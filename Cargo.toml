@@ -1,0 +1,23 @@
+[package]
+name = "boo"
+version = "0.1.0"
+authors = ["Martin Becker <mbeckerwork@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+# actix = "0.7"
+alewife = "0.0.2"
+crossterm = "0.9.6"
+irc = "0.13"
+libloading = "0.5.1"
+log = "0.4.6"
+tui-logger = '0.3.1'
+# config = "0.9"
+
+[dependencies.tui]
+version = "0.6.1"
+default-features = false
+features = ["crossterm"]
