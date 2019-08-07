@@ -1,5 +1,6 @@
 use crossterm::{InputEvent, KeyEvent, MouseButton, MouseEvent};
 
+/// Accepts a crossterm InputEvent and spits out a an Event
 pub fn process_input_event(key_event: InputEvent) -> Event {
     match key_event {
         InputEvent::Keyboard(k) => {

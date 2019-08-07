@@ -11,6 +11,7 @@ mod events;
 fn main() -> Result<(), io::Error> {
     let backend = Backend::new();
     let mut terminal = Terminal::new(backend)?;
+    let mut i  = interface::create_ui();
     if let Ok(_raw) = RawScreen::into_raw_mode() {
         let input = input();
         let mut stdin = input.read_sync();
@@ -18,7 +19,10 @@ fn main() -> Result<(), io::Error> {
         input.enable_mouse_mode().unwrap();
 
         loop {
-            terminal.draw(|mut frame| interface::draw_ui(&mut frame));
+            terminal.draw(|frame| {
+                // i.draw_ui(&mut frame, frame.size())
+                i.draw_ui(&mut frame)
+            });
             if let Some(key_event) = stdin.next() {
                match events::process_input_event(key_event) {
                    events::Event::Keyboard(e) => {
