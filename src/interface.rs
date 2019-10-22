@@ -11,21 +11,24 @@ use std::ops::{Index, IndexMut};
 type LayoutChunks = std::collections::HashMap<String, layout::Rect>;
 
 
-pub struct WidgetMeta {
-    ui: Box<dyn widgets::Widget>,
+pub struct WidgetMeta
+{
+    ui: dyn FnMut(&str) -> dyn widgets::Widget,
     size: u16,
     colourId: String,
     children: Option<ElementManager>,
 }
 
-impl WidgetMeta {
-    pub fn render(&mut self, mut frame: &mut F<B>, constraint: &layout::Rect) {
-        frame.render(&mut *self.ui , constraint.clone());
+impl WidgetMeta
+{
+    pub fn render(&mut self, name: &str, mut frame: &mut F<B>, constraint: &layout::Rect) {
+        frame.render(&mut (self.ui)(name), constraint.clone());
     }
 }
 
 
-impl Index<&str> for WidgetMeta {
+impl Index<&str> for WidgetMeta
+{
     type Output = WidgetMeta;
 
     fn index(&self, name: &str) -> &Self::Output {
@@ -33,14 +36,15 @@ impl Index<&str> for WidgetMeta {
     }
 }
 
-impl IndexMut<&str> for WidgetMeta {
+impl IndexMut<&str> for WidgetMeta
+{
 
     fn index_mut(&mut self, name: &str) -> &mut WidgetMeta {
         self.children.as_mut().unwrap().elements.get_mut(&name.to_string()).unwrap()
     }
 }
 
-type ElementList = std::collections::HashMap<String,WidgetMeta>;
+type ElementList = std::collections::HashMap<String, WidgetMeta>;
 
 pub struct ElementManager {
     elements: ElementList,
@@ -60,15 +64,15 @@ impl ElementManager {
         }
     }
 
-    fn add_widget<F>(&mut self, name: &str,
+    fn add_widget<WW>(&mut self, name: &str,
                          size: u16,
                          direction: Option<layout::Direction>,
                          children: bool,
-                         ui_element: F)
-    where F :Fn(&str)  -> Box<dyn widgets::Widget> {
+                         ui_element: dyn FnMut(&str)  -> (dyn widgets::Widget) + 'static)
+    {
         self.elements.insert(name.to_string(),
             WidgetMeta {
-                ui: ui_element(name.clone()),
+                ui: ui_element,
                 size: size,
                 colourId: "".to_string(),
                 children: if children {
@@ -89,7 +93,7 @@ impl ElementManager {
     /// Recursive draw ui function
     fn draw(&mut self, elements: &mut ElementList, mut frame: &mut F<B>, constraints: LayoutChunks) {
         for (name, element) in elements {
-            element.render(&mut frame, &constraints[&name.clone()]);
+            element.render(name.clone(), &mut frame, &constraints[&name.clone()]);
             match &mut element.children {
                 Some(c) => self.draw(&mut c.elements,
                                        &mut frame,

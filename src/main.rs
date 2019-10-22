@@ -19,7 +19,7 @@ fn main() -> Result<(), io::Error> {
         input.enable_mouse_mode().unwrap();
 
         loop {
-            terminal.draw(|frame| {
+            terminal.draw(|mut frame| {
                 // i.draw_ui(&mut frame, frame.size())
                 i.draw_ui(&mut frame)
             });
