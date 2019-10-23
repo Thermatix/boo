@@ -2,6 +2,7 @@ use tui::layout;
 use tui::terminal::Frame as F;
 use tui::widgets;
 use tui::style::{Style, Color};
+use indexmap::IndexMap;
 use super::Backend as B;
 
 use std::ops::{Index, IndexMut};
@@ -11,18 +12,28 @@ use std::ops::{Index, IndexMut};
 type LayoutChunks = std::collections::HashMap<String, layout::Rect>;
 
 
+#[derive(Clone, Debug)]
 pub struct WidgetMeta
 {
-    ui: dyn FnMut(&str) -> dyn widgets::Widget,
     size: u16,
-    colourId: String,
+    colour_id: String,
+    borders: widgets::Borders,
+    style: Style,
     children: Option<ElementManager>,
 }
 
 impl WidgetMeta
 {
-    pub fn render(&mut self, name: &str, mut frame: &mut F<B>, constraint: &layout::Rect) {
-        frame.render(&mut (self.ui)(name), constraint.clone());
+    pub fn render( &self, name: &str, frame: &mut F<B>, constraint: &layout::Rect) {
+        print!("{}: {:?}\n\r", name, constraint);
+        // print!("{}: {:?}\n\r", name,self);
+        frame.render(
+           &mut widgets::Block::default()
+            .title(name)
+            .borders(self.borders.clone())
+            .style(self.style.clone()),
+            constraint.clone()
+            );
     }
 }
 
@@ -44,8 +55,9 @@ impl IndexMut<&str> for WidgetMeta
     }
 }
 
-type ElementList = std::collections::HashMap<String, WidgetMeta>;
+type ElementList = IndexMap<String, WidgetMeta>;
 
+#[derive(Clone, Debug)]
 pub struct ElementManager {
     elements: ElementList,
     colour_grid: Vec<String>,
@@ -64,17 +76,19 @@ impl ElementManager {
         }
     }
 
-    fn add_widget<WW>(&mut self, name: &str,
+    fn add_widget(&mut self, name: &str,
                          size: u16,
                          direction: Option<layout::Direction>,
                          children: bool,
-                         ui_element: dyn FnMut(&str)  -> (dyn widgets::Widget) + 'static)
+                         style: Style,
+                         borders: widgets::Borders)
     {
         self.elements.insert(name.to_string(),
             WidgetMeta {
-                ui: ui_element,
                 size: size,
-                colourId: "".to_string(),
+                borders: borders,
+                style: style,
+                colour_id: "".to_string(),
                 children: if children {
                     Some(Self::new(direction.unwrap()))
                 } else {
@@ -85,17 +99,25 @@ impl ElementManager {
         self.names.push(name.to_string());
     }
 
+    pub fn remove_widget(&mut self, name: &str) {
+        self.elements.shift_remove(name);
+    }
+
     /// draw ui function
-    pub fn draw_ui(&mut self, mut frame: &mut F<B>) {
-        &self.draw(&mut self.elements, &mut frame, self.constraints(frame.size()).clone());
+    pub fn draw_ui(&mut self, frame: &mut F<B>) {
+        print!("frame size: {:?}\n\r", frame.size());
+        &self.draw(self.elements.clone(), frame, self.constraints(frame.size()).clone());
     }
 
     /// Recursive draw ui function
-    fn draw(&mut self, elements: &mut ElementList, mut frame: &mut F<B>, constraints: LayoutChunks) {
-        for (name, element) in elements {
-            element.render(name.clone(), &mut frame, &constraints[&name.clone()]);
+    fn draw(&mut self, elements: ElementList, mut frame: &mut F<B>, constraints: LayoutChunks) {
+        // print!("Contraints:\n\r");
+        // print!("{:?}\n\r", constraints);
+        for (name, mut element) in elements {
+            print!("render: {}: {:?}\n\r", name, &constraints[&name.clone()]);
+            element.render(name.as_ref(), &mut frame, &constraints[&name.clone()]);
             match &mut element.children {
-                Some(c) => self.draw(&mut c.elements,
+                Some(c) => self.draw(c.elements.clone(),
                                        &mut frame,
                                        c.constraints(constraints[&name.clone()])),
                 None => ()
@@ -111,12 +133,11 @@ impl ElementManager {
         for (_, element) in &self.elements {
             constraints.push(layout::Constraint::Percentage(element.size.clone()))
         }
-
        for (i, c) in layout::Layout::default()
             .direction(self.direction.clone())
             .constraints(constraints)
             .split(size.clone()).iter().enumerate() {
-
+            print!("constraint: {}: {:?}\n\r", self.names[i], c);
             res.insert(self.names[i].clone(), *c);
         }
 
@@ -145,55 +166,20 @@ pub fn create_ui() -> ElementManager {
     use layout::Direction;
 
     let mut em = ElementManager::new(Direction::Horizontal);
-    em.add_widget("drawer", 20 as u16, None, false, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    em.add_widget("drawer", 20 as u16, None, false, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
-    em.add_widget("view_port", 80 as u16, Some(Direction::Vertical), true, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    em.add_widget("view_port", 80 as u16, Some(Direction::Vertical), true, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
-    em["view_port"].add_widget("buffers", 10 as u16, Some(Direction::Vertical), false, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    em["view_port"].add_widget("buffers", 10 as u16, Some(Direction::Horizontal), false, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
-    em["view_port"].add_widget("buffer", 80 as u16, Some(Direction::Vertical), true, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    em["view_port"].add_widget("buffer", 80 as u16, Some(Direction::Horizontal), true, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
-    em["view_port"].add_widget("input", 10 as u16, Some(Direction::Vertical), false, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    em["view_port"].add_widget("input", 10 as u16, Some(Direction::Horizontal), false, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
     em["view_port"]["buffer"]
-        .add_widget("thread", 80 as u16, Some(Direction::Vertical), false, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+        .add_widget("thread", 80 as u16, Some(Direction::Vertical), false, Style::default().bg(Color::Black), widgets::Borders::ALL);
 
     em["view_port"]["buffer"]
-    .add_widget("users", 20 as u16, Some(Direction::Vertical), false, |name| {
-       Box::new(widgets::Block::default()
-            // .title(name)
-            .borders(widgets::Borders::ALL)
-            .style(Style::default().bg(Color::Black)))
-    });
+    .add_widget("users", 20 as u16, Some(Direction::Vertical), false, Style::default().bg(Color::Black), widgets::Borders::ALL);
    em
 }
